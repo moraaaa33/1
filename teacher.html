@@ -13,7 +13,7 @@
 </head>
 <body class="bg-slate-100 min-h-screen p-3 sm:p-6">
 
-    <!-- نافذة كلمة سر المعلم (Password Lock) -->
+    <!-- نافذة كلمة السر (2906) -->
     <div id="teacherLockModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full text-center space-y-4">
             <div class="w-16 h-16 bg-amber-100 text-amber-800 rounded-full flex items-center justify-center mx-auto text-2xl font-bold">
@@ -55,9 +55,18 @@
             <form onsubmit="handleCreateExam(event)" class="space-y-4">
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
-                        <label class="block text-xs font-bold text-slate-700 mb-1">عنوان الاختبار / المادة</label>
-                        <input type="text" id="examSubject" required placeholder="مثال: اختبار تجويد - جزء عم" class="w-full px-3 py-2 border rounded-xl text-xs focus:ring-2 focus:ring-amber-500 outline-none">
+                        <label class="block text-xs font-bold text-slate-700 mb-1">مادة الاختبار</label>
+                        <select id="examSubject" required class="w-full px-3 py-2 border rounded-xl text-xs bg-white focus:ring-2 focus:ring-amber-500 outline-none">
+                            <option value="">اختر المادة...</option>
+                            <option value="قرآن كريم">قرآن كريم</option>
+                            <option value="تجويد">تجويد</option>
+                            <option value="فقه">فقه</option>
+                            <option value="أصول دين">أصول دين</option>
+                            <option value="لغة عربية">لغة عربية</option>
+                            <option value="غير ذلك">غير ذلك</option>
+                        </select>
                     </div>
+
                     <div>
                         <label class="block text-xs font-bold text-slate-700 mb-1">الصف الدراسي</label>
                         <select id="examGrade" required class="w-full px-3 py-2 border rounded-xl text-xs bg-white focus:ring-2 focus:ring-amber-500 outline-none">
@@ -85,13 +94,14 @@
                             </optgroup>
                         </select>
                     </div>
+
                     <div>
                         <label class="block text-xs font-bold text-slate-700 mb-1">مدة الاختبار (بالدقائق)</label>
-                        <input type="number" id="examDuration" required min="5" placeholder="مثال: 30" class="w-full px-3 py-2 border rounded-xl text-xs focus:ring-2 focus:ring-amber-500 outline-none">
+                        <input type="number" id="examDuration" required min="1" max="120" value="10" placeholder="مثال: 30" class="w-full px-3 py-2 border rounded-xl text-xs focus:ring-2 focus:ring-amber-500 outline-none">
+                        <span class="text-[10px] text-slate-400 mt-0.5 block">من دقيقة واحدة حتى 120 دقيقة</span>
                     </div>
                 </div>
 
-                <!-- Questions Builder -->
                 <div class="border-t pt-4">
                     <div class="flex justify-between items-center mb-3">
                         <h3 class="text-xs font-bold text-slate-700">أسئلة الاختبار</h3>
@@ -108,34 +118,60 @@
             </form>
         </div>
 
-        <!-- Registered Students Section -->
+        <!-- إدارة وعرض جميع الامتحانات -->
+        <div class="bg-white rounded-2xl shadow-md p-5 sm:p-6 border border-slate-200">
+            <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
+                <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <span>📚</span>
+                    <span>عرض وإدارة جميع الامتحانات والصفوف</span>
+                </h2>
+                <select id="filterGrade" onchange="filterExamsByGrade()" class="px-3 py-1.5 border rounded-xl text-xs bg-white outline-none">
+                    <option value="all">🔍 عرض كل الصفوف</option>
+                    <option value="مرحلة الأطفال والبراعم">مرحلة الأطفال والبراعم</option>
+                    <option value="الصف الأول الابتدائي">الصف الأول الابتدائي</option>
+                    <option value="الصف الثاني الابتدائي">الصف الثاني الابتدائي</option>
+                    <option value="الصف الثالث الابتدائي">الصف الثالث الابتدائي</option>
+                    <option value="الصف الرابع الابتدائي">الصف الرابع الابتدائي</option>
+                    <option value="الصف الخامس الابتدائي">الصف الخامس الابتدائي</option>
+                    <option value="الصف السادس الابتدائي">الصف السادس الابتدائي</option>
+                    <option value="الصف الأول الإعدادي">الصف الأول الإعدادي</option>
+                    <option value="الصف الثاني الإعدادي">الصف الثاني الإعدادي</option>
+                    <option value="الصف الثالث الإعدادي">الصف الثالث الإعدادي</option>
+                    <option value="الصف الأول الثانوي">الصف الأول الثانوي</option>
+                    <option value="الصف الثاني الثانوي">الصف الثاني الثانوي</option>
+                    <option value="الصف الثالث الثانوي">الصف الثالث الثانوي</option>
+                </select>
+            </div>
+            <div id="allExamsListContainer" class="space-y-2"></div>
+        </div>
+
+        <!-- جدول الطلاب المسجلين -->
         <div class="bg-white rounded-2xl shadow-md p-5 sm:p-6 border border-slate-200">
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
                     <span>👥</span>
-                    <span>الطلاب المسجلون بالنظام (من Firebase)</span>
+                    <span>الطلاب المسجلون بالنظام</span>
                 </h2>
-                <button onclick="loadStudentsFromFirebase()" class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-800 font-bold px-3 py-1.5 rounded-lg transition">
-                    🔄 تحديث وقراءة البيانات
+                <button onclick="loadStudentsList()" class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-800 font-bold px-3 py-1.5 rounded-lg transition">
+                    🔄 تحديث القائمة
                 </button>
             </div>
             <div id="studentsListContainer" class="overflow-x-auto">
-                <p class="text-xs text-slate-400 text-center py-4">اضغط على زر التحديث لقراءة الطلاب سحابياً...</p>
+                <p class="text-xs text-slate-400 text-center py-4">جاري التحميل...</p>
             </div>
         </div>
 
     </main>
 
-    <!-- Logic Script -->
     <script>
         let questionCount = 0;
 
-        // كلمة سر معلم النظام (تم التحديث إلى 2906)
         function checkTeacherPassword() {
             const pass = document.getElementById('teacherPassInput').value;
-            if (pass === '2906') { 
+            if (pass === '2906') {
                 document.getElementById('teacherLockModal').classList.add('hidden');
-                loadStudentsFromFirebase();
+                loadStudentsList();
+                loadAllExams();
             } else {
                 alert("❌ كلمة السر غير صحيحة!");
             }
@@ -159,12 +195,23 @@
                 </div>
                 <input type="text" required placeholder="نص السؤال..." class="q-text w-full px-3 py-1.5 border rounded-lg text-xs outline-none">
                 <div class="grid grid-cols-2 gap-2">
-                    <select class="q-type w-full px-2 py-1.5 border rounded-lg text-xs bg-white">
-                        <option value="mcq">اختيار من متعدد</option>
+                    <select class="q-type w-full px-2 py-1.5 border rounded-lg text-xs bg-white" onchange="onQuestionTypeChange(this, ${questionCount})">
+                        <option value="mcq">اختر (اختيار من متعدد)</option>
                         <option value="tf">صح أو خطأ</option>
-                        <option value="text">مقالي / أكمل</option>
+                        <option value="complete">أكمل</option>
+                        <option value="reason">علل</option>
                     </select>
-                    <input type="text" placeholder="الإجابة النموذجية الصحيحة" class="q-correct w-full px-3 py-1.5 border rounded-lg text-xs outline-none">
+                    
+                    <div id="correct_answer_wrapper_${questionCount}">
+                        <input type="text" placeholder="الإجابة النموذجية الصحيحة" class="q-correct w-full px-3 py-1.5 border rounded-lg text-xs outline-none">
+                    </div>
+                </div>
+
+                <div id="options_container_${questionCount}" class="mt-2 space-y-1">
+                    <input type="text" placeholder="الخيار الأول" class="q-opt w-full px-3 py-1 border rounded text-xs">
+                    <input type="text" placeholder="الخيار الثاني" class="q-opt w-full px-3 py-1 border rounded text-xs">
+                    <input type="text" placeholder="الخيار الثالث" class="q-opt w-full px-3 py-1 border rounded text-xs">
+                    <input type="text" placeholder="الخيار الرابع" class="q-opt w-full px-3 py-1 border rounded text-xs">
                 </div>
             `;
             container.appendChild(qDiv);
@@ -173,6 +220,28 @@
         function removeQuestionField(id) {
             const el = document.getElementById(id);
             if (el) el.remove();
+        }
+
+        function onQuestionTypeChange(selectEl, qId) {
+            const optContainer = document.getElementById(`options_container_${qId}`);
+            const correctWrapper = document.getElementById(`correct_answer_wrapper_${qId}`);
+            const type = selectEl.value;
+
+            if (type === 'mcq') {
+                optContainer.style.display = 'block';
+                correctWrapper.innerHTML = `<input type="text" placeholder="الإجابة النموذجية الصحيحة" class="q-correct w-full px-3 py-1.5 border rounded-lg text-xs outline-none">`;
+            } else if (type === 'tf') {
+                optContainer.style.display = 'none';
+                correctWrapper.innerHTML = `
+                    <select class="q-correct w-full px-2 py-1.5 border rounded-lg text-xs bg-white font-bold text-emerald-800">
+                        <option value="صح">صح ✅</option>
+                        <option value="خطأ">خطأ ❌</option>
+                    </select>
+                `;
+            } else {
+                optContainer.style.display = 'none';
+                correctWrapper.innerHTML = `<input type="text" placeholder="الإجابة النموذجية الصحيحة" class="q-correct w-full px-3 py-1.5 border rounded-lg text-xs outline-none">`;
+            }
         }
 
         async function handleCreateExam(event) {
@@ -185,73 +254,143 @@
             const questions = [];
 
             qBlocks.forEach(block => {
-                questions.push({
-                    qText: block.querySelector('.q-text').value,
-                    type: block.querySelector('.q-type').value,
-                    correctAnswer: block.querySelector('.q-correct').value
-                });
+                const type = block.querySelector('.q-type').value;
+                const qText = block.querySelector('.q-text').value;
+                const correctAnswer = block.querySelector('.q-correct').value;
+                let options = [];
+
+                if (type === 'mcq') {
+                    block.querySelectorAll('.q-opt').forEach(optInput => {
+                        if (optInput.value.trim() !== '') options.push(optInput.value.trim());
+                    });
+                }
+
+                questions.push({ qText, type, correctAnswer, options });
             });
 
             const newExam = {
-                subject: subject,
-                grade: grade,
-                duration: duration,
-                questions: questions,
+                id: Date.now().toString(),
+                subject,
+                grade,
+                duration,
+                questions,
                 createdAt: new Date().toISOString()
             };
 
+            let exams = JSON.parse(localStorage.getItem('configuredExams')) || [];
+            exams.push(newExam);
+            localStorage.setItem('configuredExams', JSON.stringify(exams));
+
             if (window.saveExamToFirebase) {
                 await window.saveExamToFirebase(newExam);
-                alert("🎉 تم نشر الاختبار وسيعرض للطلاب فوراً!");
-                location.reload();
+            }
+
+            alert("🎉 تم نشر الاختبار بنجاح للطلاب!");
+            location.reload();
+        }
+
+        function loadAllExams() {
+            filterExamsByGrade();
+        }
+
+        function filterExamsByGrade() {
+            const selectedGrade = document.getElementById('filterGrade').value;
+            const container = document.getElementById('allExamsListContainer');
+
+            const exams = JSON.parse(localStorage.getItem('configuredExams')) || [];
+            const filteredExams = selectedGrade === 'all' ? exams : exams.filter(e => e.grade === selectedGrade);
+
+            if (filteredExams.length === 0) {
+                container.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">لا توجد اختبارات متفعلة.</p>`;
+                return;
+            }
+
+            container.innerHTML = filteredExams.map((exam, idx) => `
+                <div class="bg-amber-50/60 border border-amber-200 p-3 rounded-xl flex justify-between items-center text-xs">
+                    <div>
+                        <p class="font-bold text-amber-950">${idx + 1}. مادة: ${exam.subject} | الصف: <span class="text-emerald-700">${exam.grade}</span></p>
+                        <p class="text-[11px] text-slate-500 mt-0.5">⏱️ المدة: ${exam.duration} دقيقة | 📝 عدد الأسئلة: ${exam.questions.length}</p>
+                    </div>
+                    <button onclick="deleteExam('${exam.id}')" class="bg-red-500 hover:bg-red-600 text-white font-bold px-2.5 py-1.5 rounded-lg transition">حذف ❌</button>
+                </div>
+            `).join('');
+        }
+
+        function deleteExam(examId) {
+            if (confirm("هل أنت متأكد من حذف هذا الاختبار؟")) {
+                let exams = JSON.parse(localStorage.getItem('configuredExams')) || [];
+                exams = exams.filter(e => e.id !== examId);
+                localStorage.setItem('configuredExams', JSON.stringify(exams));
+                filterExamsByGrade();
             }
         }
 
-        async function loadStudentsFromFirebase() {
-            const container = document.getElementById('studentsListContainer');
-            container.innerHTML = `<p class="text-xs text-amber-700 text-center py-4">جاري تحميل قائمة الطلاب من الفايربيز...</p>`;
-
+        async function loadStudentsList() {
+            let students = [];
             if (window.fetchStudentsFromFirebase) {
-                const students = await window.fetchStudentsFromFirebase();
-                if (students.length === 0) {
-                    container.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">لا يوجد طلاب مسجلون حالياً.</p>`;
-                    return;
-                }
+                students = await window.fetchStudentsFromFirebase();
+            }
+            if (students.length === 0) {
+                students = JSON.parse(localStorage.getItem('allStudentsList')) || [];
+            }
 
-                let html = `
-                    <table class="w-full text-right text-xs border-collapse">
-                        <thead>
-                            <tr class="bg-amber-100 text-amber-900">
-                                <th class="p-2.5 border border-amber-200">الاسم</th>
-                                <th class="p-2.5 border border-amber-200">الصف الدراسي</th>
-                                <th class="p-2.5 border border-amber-200">هاتف الطالب</th>
-                                <th class="p-2.5 border border-amber-200">هاتف ولي الأمر</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                `;
+            const container = document.getElementById('studentsListContainer');
+            if (students.length === 0) {
+                container.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">لا يوجد طلاب مسجلون حتى الآن.</p>`;
+                return;
+            }
 
-                students.forEach(s => {
-                    html += `
-                        <tr class="border-b hover:bg-amber-50/50">
-                            <td class="p-2.5 border font-bold text-slate-800">${s.name}</td>
-                            <td class="p-2.5 border text-slate-600">${s.grade}</td>
-                            <td class="p-2.5 border text-slate-600" dir="ltr">${s.phone}</td>
-                            <td class="p-2.5 border text-slate-600" dir="ltr">${s.parentPhone}</td>
+            let html = `
+                <table class="w-full text-right text-xs border-collapse">
+                    <thead>
+                        <tr class="bg-amber-100 text-amber-900">
+                            <th class="p-2.5 border border-amber-200">اسم الطالب</th>
+                            <th class="p-2.5 border border-amber-200">الصف الدراسي</th>
+                            <th class="p-2.5 border border-amber-200">هاتف الطالب</th>
+                            <th class="p-2.5 border border-amber-200">هاتف ولي الأمر</th>
+                            <th class="p-2.5 border border-amber-200 text-center">الإجراء (طرد/حذف)</th>
                         </tr>
-                    `;
-                });
+                    </thead>
+                    <tbody>
+            `;
 
-                html += `</tbody></table>`;
-                container.innerHTML = html;
+            students.forEach((s, index) => {
+                html += `
+                    <tr class="border-b hover:bg-amber-50/50">
+                        <td class="p-2.5 border font-bold text-slate-800">${s.name}</td>
+                        <td class="p-2.5 border text-slate-600">${s.grade}</td>
+                        <td class="p-2.5 border text-slate-600" dir="ltr">${s.phone}</td>
+                        <td class="p-2.5 border text-slate-600" dir="ltr">${s.parentPhone}</td>
+                        <td class="p-2.5 border text-center">
+                            <button onclick="deleteStudent('${s.id || index}', ${index})" class="bg-red-500 hover:bg-red-600 text-white text-[11px] font-bold px-3 py-1 rounded-lg transition shadow-sm">طرد / حذف 🚫</button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            html += `</tbody></table>`;
+            container.innerHTML = html;
+        }
+
+        async function deleteStudent(studentId, index) {
+            if (confirm("⚠️ هل أنت متأكد من طرد وحذف هذا الطالب نهائياً؟")) {
+                let students = JSON.parse(localStorage.getItem('allStudentsList')) || [];
+                students.splice(index, 1);
+                localStorage.setItem('allStudentsList', JSON.stringify(students));
+
+                if (window.removeStudentFromFirebase && typeof studentId === 'string' && studentId.length > 5) {
+                    await window.removeStudentFromFirebase(studentId);
+                }
+                loadStudentsList();
+                alert("🚫 تم طرد الطالب وحذفه بنجاح!");
             }
         }
     </script>
 
-    <!-- Firebase SDK Integration -->
+    <!-- Firebase Script -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCOpetcxMlTHXmK-A8L9qkA2LqZ7cur7pU",
@@ -266,28 +405,29 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // قراءة قائمة الطلاب سحابياً من Firestore
         window.fetchStudentsFromFirebase = async function() {
             try {
                 const querySnapshot = await getDocs(collection(db, "students"));
                 const list = [];
-                querySnapshot.forEach((doc) => {
-                    list.push(doc.data());
+                querySnapshot.forEach((docSnap) => {
+                    list.push({ id: docSnap.id, ...docSnap.data() });
                 });
                 return list;
             } catch (e) {
-                console.error("خطأ قراءة البيانات: ", e);
                 return [];
             }
         };
 
-        // حفظ اختبار جديد
+        window.removeStudentFromFirebase = async function(studentId) {
+            try {
+                await deleteDoc(doc(db, "students", studentId));
+            } catch (e) {}
+        };
+
         window.saveExamToFirebase = async function(examData) {
             try {
                 await addDoc(collection(db, "exams"), examData);
-            } catch (e) {
-                console.error("خطأ حفظ الاختبار: ", e);
-            }
+            } catch (e) {}
         };
     </script>
 </body>

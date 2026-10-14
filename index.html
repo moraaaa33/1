@@ -140,7 +140,7 @@
             <div>
                 <h3 class="text-sm font-bold text-slate-800 mb-3 flex items-center gap-1.5">
                     <span>📜</span>
-                    <span>الامتحانات المتاحة القادمة</span>
+                    <span>الامتحانات المتاحة القادمة (محاولة واحدة فقط)</span>
                 </h3>
                 <div id="upcomingExamsContainer"></div>
             </div>
@@ -191,10 +191,10 @@
         </a>
     </footer>
 
-    <!-- JavaScript Logic -->
     <script>
         let timerInterval = null;
         let currentExamQuestions = [];
+        let activeExamId = null;
 
         window.addEventListener('DOMContentLoaded', () => {
             const currentStudent = JSON.parse(localStorage.getItem('currentStudent'));
@@ -220,6 +220,14 @@
         async function handleRegister(event) {
             event.preventDefault();
             const phone = document.getElementById('regPhone').value.trim();
+            const studentsList = JSON.parse(localStorage.getItem('allStudentsList')) || [];
+
+            if (studentsList.some(s => s.phone === phone)) {
+                alert("⚠️ هذا الرقم مسجل بالفعل! يرجى تسجيل الدخول.");
+                switchAuthMode('login');
+                document.getElementById('loginPhone').value = phone;
+                return;
+            }
 
             const newStudent = {
                 name: document.getElementById('regName').value,
@@ -229,12 +237,14 @@
                 password: document.getElementById('regPassword').value
             };
 
-            // حفظ في Firebase سحابياً
+            studentsList.push(newStudent);
+            localStorage.setItem('allStudentsList', JSON.stringify(studentsList));
+            localStorage.setItem('currentStudent', JSON.stringify(newStudent));
+
             if (window.saveStudentToFirebase) {
                 await window.saveStudentToFirebase(newStudent);
             }
 
-            localStorage.setItem('currentStudent', JSON.stringify(newStudent));
             showDashboard(newStudent);
         }
 
@@ -243,15 +253,21 @@
             const phone = document.getElementById('loginPhone').value.trim();
             const password = document.getElementById('loginPassword').value;
 
-            // التحقق والتحميل من Firebase
+            let student = null;
             if (window.getStudentFromFirebase) {
-                const student = await window.getStudentFromFirebase(phone, password);
-                if (student) {
-                    localStorage.setItem('currentStudent', JSON.stringify(student));
-                    showDashboard(student);
-                } else {
-                    alert("❌ رقم الهاتف أو كلمة السر غير صحيحة!");
-                }
+                student = await window.getStudentFromFirebase(phone, password);
+            }
+
+            if (!student) {
+                const studentsList = JSON.parse(localStorage.getItem('allStudentsList')) || [];
+                student = studentsList.find(s => s.phone === phone && s.password === password);
+            }
+
+            if (student) {
+                localStorage.setItem('currentStudent', JSON.stringify(student));
+                showDashboard(student);
+            } else {
+                alert("❌ رقم الهاتف أو كلمة السر غير صحيحة!");
             }
         }
 
@@ -268,29 +284,235 @@
             renderDashboardData(studentData);
         }
 
-        async function renderDashboardData(studentData) {
-            let gradeExams = [];
-            if (window.getExamsFromFirebase) {
-                gradeExams = await window.getExamsFromFirebase(studentData.grade);
-            }
+        function renderDashboardData(studentData) {
+            const allExams = JSON.parse(localStorage.getItem('configuredExams')) || [];
+            const gradeExams = allExams.filter(e => e.grade === studentData.grade);
 
+            const allResults = JSON.parse(localStorage.getItem('examResults')) || [];
+            const myResults = allResults.filter(r => r.studentPhone === studentData.phone);
             const upcomingContainer = document.getElementById('upcomingExamsContainer');
 
             if (gradeExams.length === 0) {
-                upcomingContainer.innerHTML = `<div class="bg-slate-50 border border-slate-200 p-4 rounded-xl text-center text-xs text-slate-500">لا توجد امتحانات مضافة حالياً لصفك الدراسي.</div>`;
+                upcomingContainer.innerHTML = `<div class="bg-slate-50 border border-slate-200 p-4 rounded-xl text-center text-xs text-slate-500">لا توجد اختبارات مضافة حالياً لصفك الدراسي.</div>`;
             } else {
-                upcomingContainer.innerHTML = gradeExams.map(exam => `
-                    <div class="bg-emerald-50/70 border border-emerald-200 p-3.5 rounded-xl flex justify-between items-center mb-2 shadow-sm">
+                upcomingContainer.innerHTML = gradeExams.map(exam => {
+                    const alreadyTaken = myResults.find(r => r.examId === exam.id || r.examSubject === exam.subject);
+
+                    if (alreadyTaken) {
+                        return `
+                            <div class="bg-slate-100 border border-slate-200 p-3.5 rounded-xl flex justify-between items-center mb-2 shadow-sm">
+                                <div>
+                                    <h4 class="font-bold text-slate-700 text-xs sm:text-sm">${exam.subject}</h4>
+                                    <p class="text-[11px] text-emerald-700 font-semibold mt-0.5">✅ تم أداء الامتحان - الدرجة: ${alreadyTaken.score}/${alreadyTaken.total}</p>
+                                </div>
+                                <span class="bg-slate-200 text-slate-500 text-[11px] font-bold px-2.5 py-1 rounded-lg">محاولة منتهية 🔒</span>
+                            </div>
+                        `;
+                    } else {
+                        return `
+                            <div class="bg-emerald-50/70 border border-emerald-200 p-3.5 rounded-xl flex justify-between items-center mb-2 shadow-sm">
+                                <div>
+                                    <h4 class="font-bold text-slate-800 text-xs sm:text-sm">${exam.subject}</h4>
+                                    <p class="text-[11px] text-slate-500 mt-0.5">⏱️ المدة: ${exam.duration} دقيقة | 📝 ${exam.questions.length} أسئلة</p>
+                                </div>
+                                <button onclick="startExam('${exam.id}')" class="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs px-3 py-2 rounded-lg transition shadow">
+                                    بدء الاختبار 📝
+                                </button>
+                            </div>
+                        `;
+                    }
+                }).join('');
+            }
+
+            const previousContainer = document.getElementById('previousExamsContainer');
+            if (myResults.length === 0) {
+                previousContainer.innerHTML = `<p class="text-center text-xs text-slate-400 py-2">لم تقم بأداء أية امتحانات بعد.</p>`;
+            } else {
+                previousContainer.innerHTML = myResults.map(r => `
+                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 flex justify-between items-center">
                         <div>
-                            <h4 class="font-bold text-slate-800 text-xs sm:text-sm">${exam.subject}</h4>
-                            <p class="text-[11px] text-slate-500 mt-0.5">⏱️ المدة: ${exam.duration} دقيقة | 📝 ${exam.questions.length} أسئلة</p>
+                            <p class="text-xs font-bold text-slate-800">${r.examSubject}</p>
+                            <p class="text-[10px] text-slate-400">${r.date}</p>
                         </div>
-                        <button onclick="startExam('${exam.id}')" class="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs px-3 py-2 rounded-lg transition shadow">
-                            بدء الاختبار 📝
-                        </button>
+                        <div class="text-left">
+                            <span class="bg-emerald-100 text-emerald-800 font-bold text-xs px-2.5 py-1 rounded-md">الدرجة: ${r.score}/${r.total}</span>
+                        </div>
                     </div>
                 `).join('');
             }
+        }
+
+        function startExam(examId) {
+            const allExams = JSON.parse(localStorage.getItem('configuredExams')) || [];
+            const exam = allExams.find(e => e.id === examId);
+            const studentData = JSON.parse(localStorage.getItem('currentStudent'));
+
+            if (!exam) return;
+
+            activeExamId = exam.id;
+            currentExamQuestions = exam.questions;
+            document.getElementById('examSubjectTitle').innerText = exam.subject;
+            document.getElementById('studentHeaderName').innerText = "الطالب: " + studentData.name;
+
+            renderExamQuestions(exam.questions);
+            startTimer(parseInt(exam.duration));
+
+            document.getElementById('studentDashboard').classList.add('hidden');
+            document.getElementById('step-exam').classList.remove('hidden');
+        }
+
+        function startTimer(minutes) {
+            let seconds = minutes * 60;
+            const display = document.getElementById('examTimerDisplay');
+
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                let mins = Math.floor(seconds / 60);
+                let secs = seconds % 60;
+                display.innerText = `⏱️ ${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+
+                if (--seconds < 0) {
+                    clearInterval(timerInterval);
+                    autoSubmitExamByTimeOut();
+                }
+            }, 1000);
+        }
+
+        function autoSubmitExamByTimeOut() {
+            const student = JSON.parse(localStorage.getItem('currentStudent'));
+            const dateStr = new Date().toLocaleString('ar-EG');
+            const answers = [];
+
+            let autoScore = 0;
+            currentExamQuestions.forEach((q, idx) => {
+                let studentAns = '';
+                if (q.type === 'mcq' || q.type === 'tf') {
+                    const selected = document.querySelector(`input[name="q_${idx}"]:checked`);
+                    studentAns = selected ? selected.value : '';
+                    if (studentAns.trim() === q.correctAnswer.trim()) autoScore++;
+                } else {
+                    const textVal = document.querySelector(`[name="q_${idx}"]`);
+                    studentAns = textVal ? textVal.value : '';
+                }
+
+                answers.push({
+                    qText: q.qText,
+                    type: q.type,
+                    studentAnswer: studentAns,
+                    correctAnswer: q.correctAnswer || ''
+                });
+            });
+
+            const newResult = {
+                id: Date.now().toString(),
+                examId: activeExamId,
+                studentName: student.name,
+                studentPhone: student.phone,
+                parentPhone: student.parentPhone,
+                grade: student.grade,
+                examSubject: document.getElementById('examSubjectTitle').innerText,
+                date: dateStr,
+                answers: answers,
+                score: autoScore,
+                total: currentExamQuestions.length,
+                graded: true
+            };
+
+            let results = JSON.parse(localStorage.getItem('examResults')) || [];
+            results.push(newResult);
+            localStorage.setItem('examResults', JSON.stringify(results));
+
+            alert(`⏰ انتهى الوقت المحدد! تم تسليم إجاباتك تلقائياً. درجتك: ${autoScore}/${currentExamQuestions.length}`);
+            showDashboard(student);
+        }
+
+        function renderExamQuestions(questions) {
+            const container = document.getElementById('examQuestionsContainer');
+            container.innerHTML = questions.map((q, idx) => {
+                let inputHtml = '';
+                if (q.type === 'mcq') {
+                    inputHtml = (q.options || []).map((opt) => `
+                        <label class="flex items-center gap-2 p-2 border rounded-lg bg-white mb-1.5 cursor-pointer hover:bg-emerald-50 text-xs">
+                            <input type="radio" name="q_${idx}" value="${opt}" required class="accent-emerald-700">
+                            <span>${opt}</span>
+                        </label>
+                    `).join('');
+                } else if (q.type === 'tf') {
+                    inputHtml = `
+                        <div class="flex gap-3">
+                            <label class="flex-1 text-center p-2 border rounded-lg bg-white cursor-pointer hover:bg-emerald-50 text-xs font-bold">
+                                <input type="radio" name="q_${idx}" value="صح" required class="accent-emerald-700"> صح ✅
+                            </label>
+                            <label class="flex-1 text-center p-2 border rounded-lg bg-white cursor-pointer hover:bg-red-50 text-xs font-bold">
+                                <input type="radio" name="q_${idx}" value="خطأ" required class="accent-emerald-700"> خطأ ❌
+                            </label>
+                        </div>`;
+                } else {
+                    inputHtml = `<textarea name="q_${idx}" rows="2" placeholder="اكتب إجابتك هنا..." required class="w-full p-2.5 border rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-emerald-600"></textarea>`;
+                }
+
+                const typeBadge = { mcq: 'اختيار من متعدد', tf: 'صح أو خطأ', complete: 'أكمل', reason: 'علل' }[q.type] || 'سؤال';
+
+                return `
+                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-xs font-bold text-slate-800">س${idx + 1}: ${q.qText}</span>
+                            <span class="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold">${typeBadge}</span>
+                        </div>
+                        ${inputHtml}
+                    </div>`;
+            }).join('');
+        }
+
+        function submitExam(event) {
+            event.preventDefault();
+            clearInterval(timerInterval);
+
+            const student = JSON.parse(localStorage.getItem('currentStudent'));
+            const dateStr = new Date().toLocaleString('ar-EG');
+            const answers = [];
+
+            let autoScore = 0;
+            currentExamQuestions.forEach((q, idx) => {
+                let studentAns = '';
+                if (q.type === 'mcq' || q.type === 'tf') {
+                    const selected = document.querySelector(`input[name="q_${idx}"]:checked`);
+                    studentAns = selected ? selected.value : '';
+                    if (studentAns.trim() === q.correctAnswer.trim()) autoScore++;
+                } else {
+                    const textVal = document.querySelector(`[name="q_${idx}"]`);
+                    studentAns = textVal ? textVal.value : '';
+                }
+
+                answers.push({
+                    qText: q.qText,
+                    type: q.type,
+                    studentAnswer: studentAns,
+                    correctAnswer: q.correctAnswer || ''
+                });
+            });
+
+            const newResult = {
+                id: Date.now().toString(),
+                examId: activeExamId,
+                studentName: student.name,
+                studentPhone: student.phone,
+                parentPhone: student.parentPhone,
+                grade: student.grade,
+                examSubject: document.getElementById('examSubjectTitle').innerText,
+                date: dateStr,
+                answers: answers,
+                score: autoScore,
+                total: currentExamQuestions.length,
+                graded: true
+            };
+
+            let results = JSON.parse(localStorage.getItem('examResults')) || [];
+            results.push(newResult);
+            localStorage.setItem('examResults', JSON.stringify(results));
+
+            alert(`🎉 تم تسليم الاختبار بنجاح! درجتك النهائية هي: ${autoScore}/${currentExamQuestions.length}`);
+            showDashboard(student);
         }
 
         function logoutStudent() {
@@ -301,7 +523,7 @@
         }
     </script>
 
-    <!-- Firebase SDK & Database Integration -->
+    <!-- Firebase Script -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getFirestore, collection, addDoc, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
@@ -319,19 +541,15 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // 1. حفظ طالب جديد في الفايربيز
         window.saveStudentToFirebase = async function(studentData) {
             try {
                 await addDoc(collection(db, "students"), {
                     ...studentData,
                     createdAt: new Date().toISOString()
                 });
-            } catch (e) {
-                console.error("خطأ أثناء الحفظ: ", e);
-            }
+            } catch (e) {}
         };
 
-        // 2. تسجيل دخول الطالب من الفايربيز
         window.getStudentFromFirebase = async function(phone, password) {
             try {
                 const q = query(collection(db, "students"), where("phone", "==", phone), where("password", "==", password));
@@ -341,23 +559,7 @@
                 }
                 return null;
             } catch (e) {
-                console.error("خطأ تسجيل الدخول: ", e);
                 return null;
-            }
-        };
-
-        // 3. قراءة الامتحانات الخاصة بصف الطالب من الفايربيز
-        window.getExamsFromFirebase = async function(grade) {
-            try {
-                const q = query(collection(db, "exams"), where("grade", "==", grade));
-                const querySnapshot = await getDocs(q);
-                const exams = [];
-                querySnapshot.forEach((doc) => {
-                    exams.push({ id: doc.id, ...doc.data() });
-                });
-                return exams;
-            } catch (e) {
-                return [];
             }
         };
     </script>
