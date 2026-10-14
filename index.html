@@ -183,16 +183,15 @@
 
     </main>
 
-    <!-- Footer & Hidden Teacher Access Lock -->
+    <!-- Footer -->
     <footer class="mt-6 text-center pb-2 relative">
         <p class="text-xs text-slate-400">دار الرحمان لتحفيظ القرآن الكريم © 2026</p>
-        
-        <!-- زر القفل الصغير الجانبي للدخول إلى لوحة المعلم -->
         <a href="teacher.html" title="لوحة المعلم" class="fixed bottom-3 left-3 bg-slate-200/80 hover:bg-amber-600 text-slate-500 hover:text-white p-2 rounded-full shadow-md transition duration-200 text-xs border border-slate-300 flex items-center justify-center">
             🔒
         </a>
     </footer>
 
+    <!-- JavaScript Logic -->
     <script>
         let timerInterval = null;
         let currentExamQuestions = [];
@@ -218,17 +217,9 @@
             }
         }
 
-        function handleRegister(event) {
+        async function handleRegister(event) {
             event.preventDefault();
             const phone = document.getElementById('regPhone').value.trim();
-            const studentsList = JSON.parse(localStorage.getItem('allStudentsList')) || [];
-
-            if (studentsList.some(s => s.phone === phone)) {
-                alert("⚠️ هذا الرقم مسجل بالفعل! يرجى تسجيل الدخول.");
-                switchAuthMode('login');
-                document.getElementById('loginPhone').value = phone;
-                return;
-            }
 
             const newStudent = {
                 name: document.getElementById('regName').value,
@@ -238,26 +229,29 @@
                 password: document.getElementById('regPassword').value
             };
 
-            studentsList.push(newStudent);
-            localStorage.setItem('allStudentsList', JSON.stringify(studentsList));
-            localStorage.setItem('currentStudent', JSON.stringify(newStudent));
+            // حفظ في Firebase سحابياً
+            if (window.saveStudentToFirebase) {
+                await window.saveStudentToFirebase(newStudent);
+            }
 
+            localStorage.setItem('currentStudent', JSON.stringify(newStudent));
             showDashboard(newStudent);
         }
 
-        function handleLogin(event) {
+        async function handleLogin(event) {
             event.preventDefault();
             const phone = document.getElementById('loginPhone').value.trim();
             const password = document.getElementById('loginPassword').value;
 
-            const studentsList = JSON.parse(localStorage.getItem('allStudentsList')) || [];
-            const student = studentsList.find(s => s.phone === phone && s.password === password);
-
-            if (student) {
-                localStorage.setItem('currentStudent', JSON.stringify(student));
-                showDashboard(student);
-            } else {
-                alert("❌ رقم الهاتف أو كلمة السر غير صحيحة!");
+            // التحقق والتحميل من Firebase
+            if (window.getStudentFromFirebase) {
+                const student = await window.getStudentFromFirebase(phone, password);
+                if (student) {
+                    localStorage.setItem('currentStudent', JSON.stringify(student));
+                    showDashboard(student);
+                } else {
+                    alert("❌ رقم الهاتف أو كلمة السر غير صحيحة!");
+                }
             }
         }
 
@@ -274,9 +268,12 @@
             renderDashboardData(studentData);
         }
 
-        function renderDashboardData(studentData) {
-            const allExams = JSON.parse(localStorage.getItem('configuredExams')) || [];
-            const gradeExams = allExams.filter(e => e.grade === studentData.grade);
+        async function renderDashboardData(studentData) {
+            let gradeExams = [];
+            if (window.getExamsFromFirebase) {
+                gradeExams = await window.getExamsFromFirebase(studentData.grade);
+            }
+
             const upcomingContainer = document.getElementById('upcomingExamsContainer');
 
             if (gradeExams.length === 0) {
@@ -294,155 +291,6 @@
                     </div>
                 `).join('');
             }
-
-            const allResults = JSON.parse(localStorage.getItem('examResults')) || [];
-            const myResults = allResults.filter(r => r.studentPhone === studentData.phone);
-            const previousContainer = document.getElementById('previousExamsContainer');
-
-            if (myResults.length === 0) {
-                previousContainer.innerHTML = `<p class="text-center text-xs text-slate-400 py-2">لم تقم بأداء أية امتحانات بعد.</p>`;
-            } else {
-                previousContainer.innerHTML = myResults.map(r => `
-                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 flex justify-between items-center">
-                        <div>
-                            <p class="text-xs font-bold text-slate-800">${r.examSubject}</p>
-                            <p class="text-[10px] text-slate-400">${r.date}</p>
-                        </div>
-                        <div class="text-left">
-                            ${r.graded ? 
-                                `<span class="bg-emerald-100 text-emerald-800 font-bold text-xs px-2.5 py-1 rounded-md">الدرجة: ${r.score}/${r.total} (${Math.round((r.score/r.total)*100)}%)</span>` : 
-                                `<span class="bg-amber-100 text-amber-800 font-bold text-xs px-2.5 py-1 rounded-md">قيد التصحيح من الإدارة</span>`}
-                        </div>
-                    </div>
-                `).join('');
-            }
-        }
-
-        function startExam(examId) {
-            const allExams = JSON.parse(localStorage.getItem('configuredExams')) || [];
-            const exam = allExams.find(e => e.id === examId);
-            const studentData = JSON.parse(localStorage.getItem('currentStudent'));
-
-            if (!exam) return;
-
-            currentExamQuestions = exam.questions;
-            document.getElementById('examSubjectTitle').innerText = exam.subject;
-            document.getElementById('studentHeaderName').innerText = "الطالب: " + studentData.name;
-
-            renderExamQuestions(exam.questions);
-            startTimer(parseInt(exam.duration));
-
-            document.getElementById('studentDashboard').classList.add('hidden');
-            document.getElementById('step-exam').classList.remove('hidden');
-        }
-
-        function startTimer(minutes) {
-            let seconds = minutes * 60;
-            const display = document.getElementById('examTimerDisplay');
-
-            clearInterval(timerInterval);
-            timerInterval = setInterval(() => {
-                let mins = Math.floor(seconds / 60);
-                let secs = seconds % 60;
-                display.innerText = `⏱️ ${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-
-                if (--seconds < 0) {
-                    clearInterval(timerInterval);
-                    alert("⏰ انتهى الوقت المحدد للاختبار! سيتم تسليم الإجابات الآن تلقائياً.");
-                    document.querySelector("#step-exam form").requestSubmit();
-                }
-            }, 1000);
-        }
-
-        function renderExamQuestions(questions) {
-            const container = document.getElementById('examQuestionsContainer');
-            container.innerHTML = questions.map((q, idx) => {
-                let inputHtml = '';
-                if (q.type === 'mcq') {
-                    inputHtml = q.options.map((opt) => `
-                        <label class="flex items-center gap-2 p-2 border rounded-lg bg-white mb-1.5 cursor-pointer hover:bg-emerald-50 text-xs">
-                            <input type="radio" name="q_${idx}" value="${opt}" required class="accent-emerald-700">
-                            <span>${opt}</span>
-                        </label>
-                    `).join('');
-                } else if (q.type === 'tf') {
-                    inputHtml = `
-                        <div class="flex gap-3">
-                            <label class="flex-1 text-center p-2 border rounded-lg bg-white cursor-pointer hover:bg-emerald-50 text-xs font-bold">
-                                <input type="radio" name="q_${idx}" value="صح" required class="accent-emerald-700"> صح
-                            </label>
-                            <label class="flex-1 text-center p-2 border rounded-lg bg-white cursor-pointer hover:bg-red-50 text-xs font-bold">
-                                <input type="radio" name="q_${idx}" value="خطأ" required class="accent-emerald-700"> خطأ
-                            </label>
-                        </div>`;
-                } else {
-                    inputHtml = `<textarea name="q_${idx}" rows="2" placeholder="اكتب إجابتك هنا..." required class="w-full p-2.5 border rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-emerald-600"></textarea>`;
-                }
-
-                const typeBadge = { mcq: 'اختيار من متعدد', tf: 'صح/خطأ', complete: 'أكمل', reason: 'علل' }[q.type];
-
-                return `
-                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                        <div class="flex justify-between items-center mb-2">
-                            <span class="text-xs font-bold text-slate-800">س${idx + 1}: ${q.qText}</span>
-                            <span class="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold">${typeBadge}</span>
-                        </div>
-                        ${inputHtml}
-                    </div>`;
-            }).join('');
-        }
-
-        function submitExam(event) {
-            event.preventDefault();
-            clearInterval(timerInterval);
-
-            const student = JSON.parse(localStorage.getItem('currentStudent'));
-            const dateStr = new Date().toLocaleString('ar-EG');
-            const answers = [];
-
-            let autoScore = 0;
-            let needsManualGrading = false;
-
-            currentExamQuestions.forEach((q, idx) => {
-                let studentAns = '';
-                if (q.type === 'mcq' || q.type === 'tf') {
-                    const selected = document.querySelector(`input[name="q_${idx}"]:checked`);
-                    studentAns = selected ? selected.value : '';
-                    if (studentAns === q.correctAnswer) autoScore++;
-                } else {
-                    const textVal = document.querySelector(`[name="q_${idx}"]`);
-                    studentAns = textVal ? textVal.value : '';
-                    needsManualGrading = true;
-                }
-
-                answers.push({
-                    qText: q.qText,
-                    type: q.type,
-                    studentAnswer: studentAns,
-                    correctAnswer: q.correctAnswer || ''
-                });
-            });
-
-            const newResult = {
-                id: Date.now().toString(),
-                studentName: student.name,
-                studentPhone: student.phone,
-                parentPhone: student.parentPhone,
-                grade: student.grade,
-                examSubject: document.getElementById('examSubjectTitle').innerText,
-                date: dateStr,
-                answers: answers,
-                score: autoScore,
-                total: currentExamQuestions.length,
-                graded: !needsManualGrading
-            };
-
-            let results = JSON.parse(localStorage.getItem('examResults')) || [];
-            results.push(newResult);
-            localStorage.setItem('examResults', JSON.stringify(results));
-
-            alert(needsManualGrading ? "🎉 تم تسليم الاختبار بنجاح! سيتم مراجعة الإجابات وإعلان النتيجة بواسطة المعلم." : `🎉 تم تسليم الاختبار بنجاح! درجتك التلقائية هي ${autoScore}/${currentExamQuestions.length}`);
-            showDashboard(student);
         }
 
         function logoutStudent() {
@@ -451,6 +299,67 @@
                 location.reload();
             }
         }
+    </script>
+
+    <!-- Firebase SDK & Database Integration -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCOpetcxMlTHXmK-A8L9qkA2LqZ7cur7pU",
+            authDomain: "dar-alrhman.firebaseapp.com",
+            databaseURL: "https://dar-alrhman-default-rtdb.firebaseio.com",
+            projectId: "dar-alrhman",
+            storageBucket: "dar-alrhman.firebasestorage.app",
+            messagingSenderId: "626775344339",
+            appId: "1:626775344339:web:f0ade6c34533726dd9c026"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // 1. حفظ طالب جديد في الفايربيز
+        window.saveStudentToFirebase = async function(studentData) {
+            try {
+                await addDoc(collection(db, "students"), {
+                    ...studentData,
+                    createdAt: new Date().toISOString()
+                });
+            } catch (e) {
+                console.error("خطأ أثناء الحفظ: ", e);
+            }
+        };
+
+        // 2. تسجيل دخول الطالب من الفايربيز
+        window.getStudentFromFirebase = async function(phone, password) {
+            try {
+                const q = query(collection(db, "students"), where("phone", "==", phone), where("password", "==", password));
+                const querySnapshot = await getDocs(q);
+                if (!querySnapshot.empty) {
+                    return querySnapshot.docs[0].data();
+                }
+                return null;
+            } catch (e) {
+                console.error("خطأ تسجيل الدخول: ", e);
+                return null;
+            }
+        };
+
+        // 3. قراءة الامتحانات الخاصة بصف الطالب من الفايربيز
+        window.getExamsFromFirebase = async function(grade) {
+            try {
+                const q = query(collection(db, "exams"), where("grade", "==", grade));
+                const querySnapshot = await getDocs(q);
+                const exams = [];
+                querySnapshot.forEach((doc) => {
+                    exams.push({ id: doc.id, ...doc.data() });
+                });
+                return exams;
+            } catch (e) {
+                return [];
+            }
+        };
     </script>
 </body>
 </html>
